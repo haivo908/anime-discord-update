@@ -2,7 +2,9 @@
 
 Bộ công cụ đã cấu hình hai phim bạn chọn. Chạy trên GitHub Actions theo lịch 30 phút, kể cả khi PC của bạn tắt. Không cần mời bot vào Discord.
 
-**Trạng thái bàn giao:** đã kiểm tra logic đọc tập/chống trùng bằng dữ liệu mẫu theo cấu trúc trang quan sát được. Chưa triển khai lên GitHub, chưa thử truy cập từ máy chủ GitHub và chưa gửi vào Discord của bạn. Đọc được bằng trình duyệt tại máy bạn không đảm bảo đọc được từ máy chủ GitHub.
+**Trạng thái triển khai ngày 14/10/2026:** công cụ đã được đưa lên [haivo908/anime-discord-update](https://github.com/haivo908/anime-discord-update), cấu hình cho kênh `#update-anime-📝` trong server **Ani Do More.** Logic đọc tập/chống trùng đã qua 11 kiểm tra. Hai lượt chạy thực tế trên GitHub chưa đọc được nguồn: [đọc trực tiếp gặp HTTP 403](https://github.com/haivo908/anime-discord-update/actions/runs/38438753458/job/115439542999) và [Chromium thông thường không đọc được mục Tập mới của cả hai phim](https://github.com/haivo908/anime-discord-update/actions/runs/38439181380/job/115440995050). **Chưa tạo webhook, chưa gửi tin Discord và chưa bật tự động.** Cần nguồn khác truy cập được hoặc máy chủ khác đã kiểm tra truy cập thành công trước khi kết nối Discord.
+
+Workflow hiện thử đọc bằng Chromium thông thường với Playwright. Nó không tự vượt CAPTCHA/xác minh khu vực. Có thể chạy `python monitor.py --mode check` không đặt `BROWSER_FETCH` để thử đọc trực tiếp; workflow đặt `BROWSER_FETCH=true` để thử bằng trình duyệt.
 
 ## 1. Tạo kho trên GitHub
 
