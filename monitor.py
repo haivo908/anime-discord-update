@@ -1,6 +1,6 @@
 """Check published episode links, then notify a Discord incoming webhook.
 
-Uses only Python's standard library. Does not bypass verification pages.
+Uses standard HTTP or an ordinary Chromium browser. Does not bypass verification pages.
 """
 import argparse
 import json
@@ -79,6 +79,8 @@ def parse_episodes(html, show_url):
 
 
 def fetch_episodes(show):
+    if os.environ.get("BROWSER_FETCH") == "true":
+        return fetch_browser_episodes(show)
     req = Request(show["url"], headers={
         "User-Agent": "AnimeEpisodeNotifier/1.0",
         "Accept": "text/html", "Accept-Language": "vi-VN,vi;q=0.9",
@@ -89,10 +91,40 @@ def fetch_episodes(show):
                 raise SourceError("Website yêu cầu xác minh khu vực. Chưa thể dùng máy chủ này.")
             html = response.read(2_000_000).decode("utf-8", errors="replace")
     except HTTPError as error:
-        raise SourceError(f"Website trả HTTP {error.code}; chưa xác nhận truy cập được từ máy chủ này.") from None
+        body = error.read(100_000).decode("utf-8", errors="replace").lower()
+        reason = "chặn truy cập HTTP"
+        if "cloudflare" in body or "just a moment" in body:
+            reason = "trang kiểm tra truy cập Cloudflare"
+        if "xác minh" in body or "xac-minh" in body or "not available in your area" in body:
+            reason = "trang xác minh/giới hạn khu vực"
+        raise SourceError(f"Website trả HTTP {error.code}: {reason}; chưa đọc được nguồn.") from None
     except (URLError, TimeoutError, OSError):
         raise SourceError("Không kết nối được website; sẽ thử lại ở lần chạy sau.") from None
     return parse_episodes(html, show["url"])
+
+
+def fetch_browser_episodes(show):
+    from playwright.sync_api import sync_playwright, Error as BrowserError
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            context = browser.new_context(locale="vi-VN")
+            page = context.new_page()
+            page.goto(show["url"], wait_until="domcontentloaded", timeout=30_000)
+            try:
+                page.locator("li.latest_eps a").first.wait_for(state="visible", timeout=15_000)
+            except BrowserError:
+                title = page.title().lower()
+                if "xác minh" in title or "/xac-minh" in page.url:
+                    raise SourceError("Trình duyệt GitHub gặp xác minh/giới hạn khu vực; không đọc được nguồn.") from None
+                if "just a moment" in title or "attention required" in title:
+                    raise SourceError("Trình duyệt GitHub gặp kiểm tra truy cập Cloudflare; không tự vượt xác minh.") from None
+                raise SourceError("Trình duyệt GitHub không đọc được mục Tập mới; nguồn bị chặn hoặc đổi cấu trúc.") from None
+            html = page.locator("li.latest_eps").first.evaluate("element => element.outerHTML")
+            browser.close()
+        return parse_episodes(html, show["url"])
+    except BrowserError:
+        raise SourceError("Trình duyệt không tải được trang; cần kiểm tra khả năng truy cập từ máy chủ.") from None
 
 
 class NoRedirect(HTTPRedirectHandler):
