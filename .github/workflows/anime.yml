@@ -1,0 +1,57 @@
+name: Anime Update
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check: thử đọc web; initialize: kết nối và lưu mốc; notify: kiểm tra tập mới'
+        type: choice
+        options:
+          - check
+          - initialize
+          - notify
+        default: check
+
+permissions:
+  contents: write
+
+concurrency:
+  group: anime-update
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.event_name == 'workflow_dispatch' || vars.ANIME_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check anime and notify
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MODE: ${{ inputs.mode || 'notify' }}
+        run: python monitor.py --mode "$MODE"
+      - name: Save delivered episodes
+        if: always()
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ ! -d .git ]; then
+            exit 1
+          fi
+          git add data/state.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Save anime notification state"
+          git push origin "HEAD:$DEFAULT_BRANCH"
